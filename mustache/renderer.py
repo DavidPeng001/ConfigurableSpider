@@ -54,6 +54,10 @@ class Renderer(object):
 
 		return self._span_replace(string, repl_list, span_list)
 
+	def render_all(self, strings):
+		return [self.render(string) for string in list(strings)]
+
+
 	def _path_transfer(self, expression):
 		"""
 		Find dict paths in mustache expression and transfer them executable string.
@@ -109,8 +113,9 @@ if __name__ == '__main__':
 		}
 	}
 	d = dict2obj(test)
-	print(d.key3.keys())
-	print(list(d.key3.keys()))
+	t = d.key3.key5
+	t.setdefault('key7', [])
+
 	exit(0)
 	r = Renderer()
 	r.add('test', test)

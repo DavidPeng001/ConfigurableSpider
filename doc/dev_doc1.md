@@ -1,0 +1,206 @@
+## 爬虫开发参考文档 01
+
+### 语法简述
+
+配置文件使用JSON进行编写，允许在value中使用mustache方式（即 {{...}} ）来使用类似python语法的表达式，例如：
+```json
+"key": "xxx{{'abcd'+str(1)}}"
+```
+等效于：
+```json
+"key": "xxxabcd1"
+```
+同时，爬虫在执行时会根据JSON配置文件来生成内部的参数字典，允许使用类似JavaScript语法或python语法来调用参数字典，本stage可用 's' 调用，历史stage可用其stage名称来调用，例如：
+```json
+"key": "{{'abcd'+s.request.url}}"
+```
+也可写成：
+```json
+"key": "{{'abcd'+s['request']['url']}}"
+```
+
+### 基本模版
+
+```json
+{   
+    "name": "",
+    "header": {
+        "external": [],
+        "loop": {}
+    },
+    "request": {
+        "url": "",
+        "method": "",
+        "headers": {},
+        "cookies": {}
+    },
+    "parser": {
+    },
+    
+    "output": {
+        "next_stage": {}
+    },
+    "auto_parse": false,
+    "remove_repeats": true
+}
+```
+
+- name   该stage的名称，请保证名称的唯一性，禁止重名
+
+- header   爬虫执行前配置
+
+- header.external   数组，需导入的外部参数名称的集合
+
+- header.loop   对象，该爬虫stage的循环参数，该对象value必须为数组，详解见后文
+
+- request.url   请求的URL
+
+- request.method   请求的方法，目前仅支持GET方法
+
+- request.headers   对象，请求头部，若不填User-Agent，则自动生成默认值
+
+- request.cookies   对象，请求的cookies
+
+- parser   对象，网页解析块， 详解见后文
+
+- output.next_stage   对象，非必要，指定下一stage以及默认URL（ 没有则为null ）
+
+- auto_parse   布尔，是否通过自动解析器输出该网页的标题与正文
+
+- remove_repeats   布尔，是否过滤去除指向同一stage的重复默认URL请求
+
+  *以下内容暂未实装*
+
+- output.external   对象，输出为外部参数，注意，外部参数不可重名，若发生重名则会覆盖之前的外部参数
+
+- depth   整型，连续重复（递归）该stage深度，用于停止无限递归。
+
+### header.loop 举例说明
+
+```json
+"loop": {
+	"array1": "{{range(0,5)}}",
+	"array2": ['a', 'b', 'c'],
+	"array3": [1, 2, 3]
+}
+```
+可以理解为：
+
+```python
+for array1-item in range(0,5):
+	for array2-item in ['a', 'b', 'c']:
+		for array3-item in [1, 2, 3]:
+			# stage main
+```
+并且在后面的stage主体部分中，可以调用键名加 '-item' ，在上面例子中即可调用 's.loop.array1-item' 来获取在该次循环中的数组元素值。
+loop参数最典型的应用就是爬取已知页数的网页，爬虫需要在URL的参数部分中代入页码号，并递增此页码号进行循环爬取。完成该需求，只需在loop中声明循环参数：
+
+```json
+"loop": {
+	"pages": "{{range(1,251)}}"
+}
+```
+URL部分去调用其数组元素：
+```json
+"url": "www.xxx.com/?page={{str(s.loop.pages-item)}}"
+```
+
+则该爬虫会从1到250循环执行该stage 250次。
+
+### parser 说明
+
+parser对象共包含7种类型，某些对象都有child属性，这说明它们可以拥有子parser对象。
+
+1. xpath
+```json
+"name": {
+	"type": "xpath",
+	"xpath": "//a[@class='bangumi-title']/@href",
+}
+```
+在父节点中取该xpath选择器的第一个匹配值，一般配合xpath-loop或css-loop完成任务
+
+> 父节点：指上一层xpath-loop或css-loop所确定的节点，若上一层未确定节点，则父节点为整个html文档。
+
+**参数字典：**
+```python
+"name": ["...xpath match value..."]
+```
+
+2. css
+```json
+"name": {
+	"type": "css",
+	"css": "a.bangumi-title::href"
+}
+```
+在父节点中取该css选择器的第一个匹配值，一般配合xpath-loop或css-loop完成任务
+
+**参数字典：**
+
+
+
+```python
+"name": ["...css match value..."]
+```
+
+3. xpath-list
+```json
+"name": {
+	"type": "xpath-list",
+	"xpath": "//a[@class='bangumi-title']/@href",
+}
+```
+在父节点中取该xpath选择器的所有匹配值
+
+**参数字典：**
+```python
+"name": ["value1", "value2", "value3"...]
+```
+4. css-list
+```json
+"name": {
+	"type": "css-list",
+	"css": "a.bangumi-title::href"
+}
+```
+在父节点中取该css选择器的所有匹配值
+
+**参数字典：**
+```python
+"name": ["value1", "value2", "value3"...]
+```
+
+5. xpath-loop
+```json
+"name": {
+	"type": "xpath-loop",
+	"xpath": "//li[@class='bangumi-item']"
+	"child": {}
+}
+```
+在父节点中取该xpath选择器的所有匹配节点，并循环遍历这些节点，将其作为该parser对象子对象的父节点。
+
+**参数字典：**
+```python
+"name": {
+	"item": 
+}
+
+```
+
+
+
+### 关键字与保留字
+
+自定键名禁止设为关键字和保留字
+
+**关键字**
+
+- 示例JSON配置文件中所有预定键名
+
+**保留字**
+
+- 保留字一般为参数字典内预定键名
+
+### 解析器 json与参数
