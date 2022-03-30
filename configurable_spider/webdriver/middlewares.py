@@ -1,32 +1,21 @@
+import logging
+from queue import Queue, Empty
+
 from scrapy.exceptions import NotConfigured
 from scrapy.signals import engine_stopped
-from selenium import webdriver
 
 from configurable_spider.webdriver.http import WebdriverRequest
+from configurable_spider.webdriver.manager import WebdriverManager
 
+logger = logging.getLogger('WebdriverSpiderMiddleware')
 
 class WebdriverSpiderMiddleware(object):
 
 	def __init__(self, crawler):
 		self.crawler = crawler
-		self._settings_browser = crawler.settings.get('WEBDRIVER_BROWSER', None)
-		self._settings_options = crawler.settings.get('WEBDRIVER_OPTIONS', [])
-		self._user_agent = crawler.settings.get('USER_AGENT', None)
-		self._webdriver = None
-
-		# get webdriver browser class
-		if not self._settings_browser:
-			self._settings_browser = 'Chrome'
-		module = __import__('selenium.webdriver', fromlist=[self._settings_browser])
-		self._browser = getattr(module, self._settings_browser)
-
-		# get webdriver options obj
-		if issubclass(self._browser, (webdriver.Chrome, webdriver.Firefox, webdriver.Ie)):
-			module = __import__('selenium.webdriver', fromlist=[self._settings_browser + 'Options'])
-			self._options = getattr(module, self._settings_browser + 'Options')
-			self._webdriver_options = self._options()
-			for option in self._settings_options:
-				self._webdriver_options.add_argument(option)
+		self._manager_queue = Queue()
+		self._wait_request = Queue()
+		self.crawler.signals.connect(self._check_queue, signal=engine_stopped)
 
 	@classmethod
 	def from_crawler(cls, crawler):
@@ -36,20 +25,60 @@ class WebdriverSpiderMiddleware(object):
 			raise NotConfigured('WEBDRIVER_BROWSER is misconfigured: %r (%r)' % (crawler.settings.get('WEBDRIVER_BROWSER'), e))
 
 	def process_start_requests(self, start_requests, spider):
-		for request in start_requests:
-			yield self._init_webdriver(request)
+		instance_number = getattr(spider, 'webdriver_instances', None)
+		if isinstance(instance_number, int) and instance_number > 0:
+			self._init_webdriver_queue(instance_number)
+
+		return self._process_requests(start_requests)
+		# for request in self._process_requests(start_requests):
+		# 	yield request
 
 	def process_spider_output(self, response, result, spider):
-		for request in result:
-			yield self._init_webdriver(request)
+		for request in self._process_requests(result):
+			yield request
+		if isinstance(response.request, WebdriverRequest):
+			try:
+				next_request = self._wait_request.get_nowait()
+			except Empty:
+				pass
+			else:
+				request_result = self._process_request(next_request)
+				if request_result is not None:
+					yield request_result
 
-	def _init_webdriver(self, request):
-		if isinstance(request, WebdriverRequest) and request.webdriver is None:
-			self._webdriver = self._browser(options=self._webdriver_options)
-			self.crawler.signals.connect(self._cleanup, signal=engine_stopped)
-			request.webdriver = self._webdriver
-		return request
 
-	def _cleanup(self):
-		if self._webdriver is not None:
-			self._webdriver.quit()
+	def _init_webdriver_queue(self, instance_number):
+		for i in range(instance_number):
+			self._manager_queue.put_nowait(WebdriverManager(self.crawler))
+
+
+	def _process_requests(self, items_or_requests):
+		for request in iter(items_or_requests):
+			if isinstance(request, WebdriverRequest):
+				try:
+					current_manager = self._manager_queue.get(True, timeout=10)
+				except Empty:
+					logger.error('Webdriver manager queue timeout, try later')
+					continue    #XXX: try later?
+				else:
+					self._manager_queue.put_nowait(current_manager)
+				request_result = current_manager.acquire(request, self._wait_request)
+				if request_result is None:
+					continue
+				yield request_result
+
+	def _process_request(self, request):
+		if isinstance(request, WebdriverRequest):
+			try:
+				current_manager = self._manager_queue.get(True, timeout=10)
+			except Empty:
+				logger.error('Webdriver manager queue timeout, try later')
+				return
+			else:
+				self._manager_queue.put_nowait(current_manager)
+			request_result = current_manager.acquire(request, self._wait_request)
+			return request_result
+
+	def _check_queue(self):
+		if not self._wait_request.empty():
+			logger.error('Waiting request queue not empty at engine stop.')

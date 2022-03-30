@@ -8,7 +8,9 @@
 import scrapy
 
 
-class VerticalspiderItem(scrapy.Item):
+class ConfigurableSpiderItem(scrapy.Item):
     # define the fields for your item here like:
-    # name = scrapy.Field()
-    pass
+    url = scrapy.Field()
+    html = scrapy.Field()
+    body = scrapy.Field()
+

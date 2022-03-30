@@ -1,0 +1,22 @@
+/* .thead-black th {
+    background-color: #4f4f4f;
+    color: #eee;
+}
+.codehl-traceback span {
+    background-color: #f00;
+    color: #fff
+}
+.codehl-error span {
+    color: #f00
+}
+.codehl-warning span {
+    color: #f60
+} */
+
+.block {
+    border:1px solid #e0e0e0 ;
+    border-radius: 5px;
+    padding: 20px 10px;
+    margin-bottom: 20px;
+    
+}

@@ -9,7 +9,7 @@ from scrapy import signals
 from scrapy.http import HtmlResponse
 from time import sleep
 
-class SeleniumDownloaderMiddleware(object):
+class SpiderEndingMiddleware(object):
 
     @classmethod
     def from_crawler(cls, crawler):

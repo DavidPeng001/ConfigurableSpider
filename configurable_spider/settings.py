@@ -19,7 +19,7 @@ NEWSPIDER_MODULE = 'configurable_spider.spiders'
 #USER_AGENT = 'configurable_spider (+http://www.yourdomain.com)'
 
 # Obey robots.txt rules
-ROBOTSTXT_OBEY = True
+ROBOTSTXT_OBEY = False
 
 # Configure maximum concurrent requests performed by Scrapy (default: 16)
 #CONCURRENT_REQUESTS = 32
@@ -52,7 +52,7 @@ ROBOTSTXT_OBEY = True
 
 # Enable or disable downloader middlewares
 # See https://docs.scrapy.org/en/latest/topics/downloader-middleware.html
-#DOWNLOADER_MIDDLEWARES = {
+# = {
 #    'configurable_spider.middlewares.VerticalspiderDownloaderMiddleware': 543,
 #}
 
@@ -64,9 +64,7 @@ ROBOTSTXT_OBEY = True
 
 # Configure item pipelines
 # See https://docs.scrapy.org/en/latest/topics/item-pipeline.html
-#ITEM_PIPELINES = {
-#    'configurable_spider.pipelines.VerticalspiderPipeline': 300,
-#}
+
 
 # Enable and configure the AutoThrottle extension (disabled by default)
 # See https://docs.scrapy.org/en/latest/topics/autothrottle.html
@@ -90,16 +88,26 @@ ROBOTSTXT_OBEY = True
 #HTTPCACHE_STORAGE = 'scrapy.extensions.httpcache.FilesystemCacheStorage'
 
 DOWNLOAD_HANDLERS = {
-    'http': 'webdriver_addons.downloadhandler.WebdriverDownloadHandler',
-    'https': 'webdriver_addons.downloadhandler.WebdriverDownloadHandler',
+    'http': 'webdriver.downloadhandler.WebdriverDownloadHandler',
+    'https': 'webdriver.downloadhandler.WebdriverDownloadHandler',
 }
 
 SPIDER_MIDDLEWARES = {
-    'webdriver_addons.middlewares.WebdriverSpiderMiddleware': 543,
+    'webdriver.middlewares.WebdriverSpiderMiddleware': 543
+}
+DOWNLOADER_MIDDLEWARES = {
+	'scrapy.downloadermiddlewares.retry.RetryMiddleware':200
+}
+
+ITEM_PIPELINES = {
+   'pipelines.ConfigurableSpiderPipeline': 300
 }
 
 WEBDRIVER_BROWSER = 'Chrome'
 
-WEBDRIVER_OPTIONS = {
-    'options': ['--debug=true', '--load-images=false', '--webdriver-loglevel=debug', '--disable-gpu']
-}
+WEBDRIVER_OPTIONS = [
+	'--debug=true',
+	'--load-images=false',
+	'--webdriver-loglevel=debug',
+	'--headless=true'
+]

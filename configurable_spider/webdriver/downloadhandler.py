@@ -1,4 +1,5 @@
 import logging
+import time
 
 from scrapy.utils.decorators import inthread,  defers
 from scrapy.utils.misc import load_object
@@ -21,9 +22,14 @@ class WebdriverDownloadHandler(object):
             download = self._fallback_handler.download_request
         return download(request, spider)
 
-    @defers
+    @inthread
     def _download_request(self, request, spider):
         """Download a request URL using webdriver."""
-        logging.debug('Downloading %s with webdriver' % request.url)
-        request.webdriver.get(request.url)
-        return WebdriverResponse(request.url, webdriver=request.webdriver)
+        logging.debug('Webdriver download %s' % request.url)
+        request.manager.webdriver.get(request.url)
+        if request.refresh:
+            request.manager.webdriver.refresh()
+        if request.manager.request_counter > 0:
+            request.manager.request_counter -= 1
+        time.sleep(1)
+        return WebdriverResponse(request.url, request.manager.webdriver.page_source)
